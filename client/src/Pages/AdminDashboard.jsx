@@ -17,12 +17,12 @@ import {
 } from "react-icons/fa";
 
 import axios from 'axios';
-import DashOverview from "../components/DashOverview";
-import DashUserManagement from "../components/DashUserManagement";
-import DashDeviceMangement from "../components/DashDeviceMangement";
-import DashReports from "../components/DashReports";
-import DashNotifications from "../components/DashNotifications";
-import DashSettings from "../components/DashSettings";
+import DashOverview from "../components/Admin/DashOverview";
+import DashUserManagement from "../components/Admin/DashUserManagement";
+import DashDeviceMangement from "../components/Admin/DashDeviceMangement";
+import DashReports from "../components/Admin/DashReports";
+import DashNotifications from "../components/Admin/DashNotifications";
+import DashSettings from "../components/Admin/DashSettings";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
