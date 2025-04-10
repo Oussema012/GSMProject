@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FaServer,
   FaNetworkWired,
   FaDesktop,
   FaLaptop,
-  FaMobileAlt,
   FaSearch,
   FaPlus,
   FaEdit,
@@ -14,101 +13,182 @@ import {
   FaFilter,
   FaChevronDown
 } from 'react-icons/fa';
+import { FaCloud } from 'react-icons/fa';
 
 const DashDeviceManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [expandedDevice, setExpandedDevice] = useState(null);
+  const [devices, setDevices] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Sample device data
-  const devices = [
-    {
-      id: 1,
-      name: 'Core Router 1',
-      type: 'router',
-      status: 'active',
-      ip: '192.168.1.1',
-      model: 'Cisco 7200',
-      lastSeen: '2 minutes ago',
-      cpu: '32%',
-      memory: '45%'
-    },
-    {
-      id: 2,
-      name: 'Switch Cluster A',
-      type: 'switch',
-      status: 'active',
-      ip: '192.168.1.2',
-      model: 'Juniper EX4300',
-      lastSeen: '5 minutes ago',
-      cpu: '18%',
-      memory: '30%'
-    },
-    {
-      id: 3,
-      name: 'Firewall Main',
-      type: 'firewall',
-      status: 'warning',
-      ip: '192.168.1.3',
-      model: 'FortiGate 100F',
-      lastSeen: '10 minutes ago',
-      cpu: '75%',
-      memory: '60%'
-    },
-    {
-      id: 4,
-      name: 'Server Node 1',
-      type: 'server',
-      status: 'inactive',
-      ip: '192.168.1.4',
-      model: 'Dell R740',
-      lastSeen: '1 hour ago',
-      cpu: '0%',
-      memory: '5%'
-    },
-    {
-      id: 5,
-      name: 'Workstation 101',
-      type: 'endpoint',
-      status: 'active',
-      ip: '192.168.1.101',
-      model: 'HP EliteDesk',
-      lastSeen: '15 minutes ago',
-      cpu: '12%',
-      memory: '25%'
+  // Replace with your GNS3 project ID
+  const projectId = "8a320aab-0962-4e2f-8ddf-6ac58e279877";
+
+  // Fetch devices on component mount
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch("http://localhost:5000/api/gns3/sync-devices", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ projectId }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setDevices(data.devices || []);
+      } catch (error) {
+        console.error("Error fetching devices:", error);
+        setError(error.message);
+        setDevices([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDevices();
+  }, [projectId]);
+
+  const refreshDevices = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch("http://localhost:5000/api/gns3/sync-devices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setDevices(data.devices || []);
+    } catch (error) {
+      console.error("Error refreshing devices:", error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
+
+  const getDeviceDetails = async (projectId, nodeId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/gns3/device-details/${projectId}/${nodeId}`);
+      const data = await response.json();
+      return data.details;
+    } catch (error) {
+      console.error("Error fetching device details:", error);
+      return null;
+    }
+  };
 
   const filteredDevices = devices.filter(device => {
     const matchesSearch = device.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          device.ip.includes(searchTerm);
-    const matchesFilter = activeFilter === 'all' || device.status === activeFilter;
+    const matchesFilter = activeFilter === 'all' || device.DeviceStatus.toLowerCase() === activeFilter;
     return matchesSearch && matchesFilter;
   });
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'bg-green-500';
-      case 'warning': return 'bg-yellow-500';
-      case 'inactive': return 'bg-red-500';
+    switch (status.toLowerCase()) {
+      case 'started': return 'bg-green-500';
+      case 'suspended': return 'bg-yellow-500';
+      case 'stopped': return 'bg-red-500';
+      case 'unknown': return 'bg-gray-500';
       default: return 'bg-gray-500';
     }
   };
 
-  const getDeviceIcon = (type) => {
-    switch (type) {
-      case 'router': return <FaNetworkWired className="text-blue-500" />;
-      case 'switch': return <FaNetworkWired className="text-green-500" />;
-      case 'firewall': return <FaServer className="text-red-500" />;
-      case 'server': return <FaServer className="text-purple-500" />;
-      case 'endpoint': return <FaLaptop className="text-gray-500" />;
-      default: return <FaDesktop className="text-gray-400" />;
+  const getDeviceIcon = (deviceName) => {
+    if (!deviceName) return <FaDesktop className="text-gray-400" />;
+    
+    const firstLetter = deviceName.charAt(0).toLowerCase();
+    
+    switch (firstLetter) {
+      case 'r': // Router
+        return <FaNetworkWired className="text-blue-500" />;
+      case 'c': // Cloud
+        return <FaCloud className="text-cyan-500" />;
+      case 'f': // Firewall
+        return <FaServer className="text-red-500" />;
+      case 'p': // PC/Workstation
+        return <FaLaptop className="text-gray-500" />;
+      case 's': // Switch/Server
+        // Additional check to differentiate between Switch and Server
+        if (deviceName.toLowerCase().includes('server') || 
+            deviceName.toLowerCase().includes('vm') ||
+            deviceName.toLowerCase().includes('esxi')) {
+          return <FaServer className="text-purple-500" />;
+        }
+        return <FaNetworkWired className="text-green-500" />;
+      default:
+        // Fallback to type detection from full name if first letter doesn't match
+        if (deviceName.toLowerCase().includes('router')) {
+          return <FaNetworkWired className="text-blue-500" />;
+        }
+        if (deviceName.toLowerCase().includes('cloud')) {
+          return <FaCloud className="text-cyan-500" />;
+        }
+        if (deviceName.toLowerCase().includes('firewall')) {
+          return <FaServer className="text-red-500" />;
+        }
+        if (deviceName.toLowerCase().includes('pc') || 
+            deviceName.toLowerCase().includes('workstation')) {
+          return <FaLaptop className="text-gray-500" />;
+        }
+        if (deviceName.toLowerCase().includes('switch')) {
+          return <FaNetworkWired className="text-green-500" />;
+        }
+        if (deviceName.toLowerCase().includes('server')) {
+          return <FaServer className="text-purple-500" />;
+        }
+        return <FaDesktop className="text-gray-400" />;
     }
   };
 
-  const toggleExpand = (id) => {
-    setExpandedDevice(expandedDevice === id ? null : id);
+  const toggleExpand = async (device) => {
+    if (expandedDevice === device.id) {
+      setExpandedDevice(null);
+    } else {
+      // Fetch additional details when expanding
+      const details = await getDeviceDetails(device.projectId, device.nodeId);
+      setExpandedDevice(device.id);
+      // You might want to store these details in state or merge them with the device object
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-500 mb-4">Error loading devices: {error}</div>
+        <button 
+          onClick={refreshDevices}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -118,10 +198,19 @@ const DashDeviceManagement = () => {
           <h1 className="text-2xl font-bold text-gray-800">Device Management</h1>
           <p className="text-gray-600">Manage all network devices in your GNS3 environment</p>
         </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
-          <FaPlus className="mr-2" />
-          Add Device
-        </button>
+        <div className="flex space-x-2">
+          <button 
+            onClick={refreshDevices}
+            className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            title="Refresh devices"
+          >
+            <FaSync className={`text-gray-600 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+            <FaPlus className="mr-2" />
+            Add Device
+          </button>
+        </div>
       </div>
 
       {/* Search and Filter Bar */}
@@ -148,12 +237,10 @@ const DashDeviceManagement = () => {
               <option value="active">Active</option>
               <option value="warning">Warning</option>
               <option value="inactive">Inactive</option>
+              <option value="unknown">Unknown</option>
             </select>
             <FaChevronDown className="text-gray-500 ml-2" />
           </div>
-          <button className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-            <FaSync className="text-gray-600" />
-          </button>
         </div>
       </div>
 
@@ -166,38 +253,38 @@ const DashDeviceManagement = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Device</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Seen</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredDevices.map((device) => (
-                <React.Fragment key={device.id}>
+                <React.Fragment key={device.id || device.nodeId}>
                   <tr 
                     className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => toggleExpand(device.id)}
+                    onClick={() => toggleExpand(device)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 mr-3">
-                          {getDeviceIcon(device.type)}
+                          {getDeviceIcon(device.name)}
                         </div>
                         <div>
                           <div className="font-medium text-gray-900">{device.name}</div>
-                          <div className="text-sm text-gray-500">{device.model}</div>
+                          <div className="text-sm text-gray-500">{device.nodeId}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {device.ip}
+                      {device.ip || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(device.status)} text-white`}>
-                        {device.status.charAt(0).toUpperCase() + device.status.slice(1)}
+                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(device.DeviceStatus)} text-white`}>
+                        {device.DeviceStatus.charAt(0).toUpperCase() + device.DeviceStatus.slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {device.lastSeen}
+                      {device.name.split(' ')[0]} {/* Simple way to get device type from name */}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
@@ -218,24 +305,12 @@ const DashDeviceManagement = () => {
                       <td colSpan="5" className="px-6 py-4 bg-gray-50">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
-                            <h4 className="text-sm font-medium text-gray-500">CPU Usage</h4>
-                            <div className="mt-1 w-full bg-gray-200 rounded-full h-2.5">
-                              <div 
-                                className={`h-2.5 rounded-full ${device.cpu > 70 ? 'bg-red-500' : 'bg-blue-500'}`}
-                                style={{ width: device.cpu }}
-                              ></div>
-                            </div>
-                            <p className="text-sm text-gray-500 mt-1">{device.cpu}</p>
+                            <h4 className="text-sm font-medium text-gray-500">MAC Address</h4>
+                            <p className="text-sm text-gray-900 mt-1">{device.macAddress || 'N/A'}</p>
                           </div>
                           <div>
-                            <h4 className="text-sm font-medium text-gray-500">Memory Usage</h4>
-                            <div className="mt-1 w-full bg-gray-200 rounded-full h-2.5">
-                              <div 
-                                className={`h-2.5 rounded-full ${device.memory > 70 ? 'bg-red-500' : 'bg-green-500'}`}
-                                style={{ width: device.memory }}
-                              ></div>
-                            </div>
-                            <p className="text-sm text-gray-500 mt-1">{device.memory}</p>
+                            <h4 className="text-sm font-medium text-gray-500">Gateway</h4>
+                            <p className="text-sm text-gray-900 mt-1">{device.gateway || 'N/A'}</p>
                           </div>
                           <div className="flex items-end space-x-2">
                             <button className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
@@ -257,15 +332,18 @@ const DashDeviceManagement = () => {
       </div>
 
       {/* Empty State */}
-      {filteredDevices.length === 0 && (
+      {filteredDevices.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <FaSearch className="mx-auto text-gray-400 text-4xl mb-4" />
           <h3 className="text-lg font-medium text-gray-900">No devices found</h3>
           <p className="mt-1 text-sm text-gray-500">
             {searchTerm ? 'Try adjusting your search or filter' : 'Add your first device to get started'}
           </p>
-          <button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-            Add New Device
+          <button 
+            onClick={refreshDevices}
+            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+          >
+            Refresh Devices
           </button>
         </div>
       )}

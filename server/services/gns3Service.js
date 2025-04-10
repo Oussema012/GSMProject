@@ -15,7 +15,7 @@ const fetchDevicesFromGNS3 = async (projectId) => {
     console.error("Error fetching devices from GNS3:", error);
     throw new Error("Error fetching devices");
   }
-};
+}; 
 
 // Function to get details of a device using 'show ip' command
 const getDeviceDetailsFromGNS3 = async (projectId, nodeId) => {
