@@ -95,9 +95,17 @@ const DashDeviceManagement = () => {
 
   const filteredDevices = devices.filter(device => {
     const matchesSearch = device.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         device.ip.includes(searchTerm);
-    const matchesFilter = activeFilter === 'all' || device.DeviceStatus.toLowerCase() === activeFilter;
-    return matchesSearch && matchesFilter;
+                         (device.ip && device.ip.includes(searchTerm)) ||
+                         (device.macAddress && device.macAddress.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesStatusFilter = 
+      activeFilter === 'all' || 
+      (activeFilter === 'active' && device.DeviceStatus.toLowerCase() === 'started') ||
+      (activeFilter === 'inactive' && device.DeviceStatus.toLowerCase() === 'stopped') ||
+      (activeFilter === 'warning' && device.DeviceStatus.toLowerCase() === 'suspended') ||
+      (activeFilter === 'unknown' && device.DeviceStatus.toLowerCase() === 'unknown');
+    
+    return matchesSearch && matchesStatusFilter;
   });
 
   const getStatusColor = (status) => {
@@ -156,7 +164,75 @@ const DashDeviceManagement = () => {
         return <FaDesktop className="text-gray-400" />;
     }
   };
-
+  const getDeviceType = (name) => {
+    if (!name) return 'Unknown';
+  
+    const lowerName = name.toLowerCase().trim();
+  
+    // Extended device type mapping
+    const typeMap = [
+      { patterns: ['router', 'rt', 'rtr', '^r\\d', 'mpls'], type: 'Router' },
+      { patterns: ['switch', 'sw', '^s\\d', 'layer2', 'l2'], type: 'Switch' },
+      { patterns: ['firewall', 'fw', 'palo', 'forti', 'asa'], type: 'Firewall' },
+      { patterns: ['load balancer', 'lb', 'f5', 'citrix'], type: 'Load Balancer' },
+      { patterns: ['access point', 'ap', 'wifi', 'wireless'], type: 'Access Point' },
+      { patterns: ['server', 'srv', 'esxi', 'hyperv'], type: 'Server' },
+      { patterns: ['pc', 'laptop', 'workstation', 'desktop'], type: 'Computer' },
+      { patterns: ['cloud', 'aws', 'azure', 'gcp'], type: 'Cloud' },
+      { patterns: ['vm', 'virtual machine'], type: 'Virtual Machine' },
+      { patterns: ['container', 'docker', 'kubernetes'], type: 'Container' },
+      { patterns: ['iot', 'sensor', 'smart'], type: 'IoT Device' },
+      { patterns: ['phone', 'voip', 'ipphone'], type: 'Phone' },
+      { patterns: ['printer', 'print'], type: 'Printer' },
+      { patterns: ['nas', 'san', 'storage'], type: 'Storage' },
+      { patterns: ['camera', 'ipcam'], type: 'Camera' },
+      { patterns: ['nat', 'nat device'], type: 'NAT Device' },
+      { patterns: ['atm', 'atm switch'], type: 'ATM Switch' },
+      { patterns: ['proxy', 'squid'], type: 'Proxy Server' },
+      { patterns: ['ids', 'ips', 'security'], type: 'Security Device' },
+      { patterns: ['modem', 'dsl', 'cable'], type: 'Modem' },
+      { patterns: ['hub', 'repeater'], type: 'Hub' },
+      { patterns: ['bridge', 'wireless bridge'], type: 'Bridge' },
+      { patterns: ['gateway', 'media gateway'], type: 'Gateway' },
+      { patterns: ['pbx', 'phone system'], type: 'PBX' },
+      { patterns: ['ups', 'power supply'], type: 'UPS' }
+    ];
+  
+    // Check for matches in priority order
+    for (const { patterns, type } of typeMap) {
+      for (const pattern of patterns) {
+        const regex = new RegExp(pattern);
+        if (regex.test(lowerName)) {
+          return type;
+        }
+      }
+    }
+  
+    // Check for common prefixes if no direct match
+    const prefix = lowerName.split(/\s+/)[0];
+    const prefixMap = {
+      'r': 'Router',
+      'sw': 'Switch',
+      'fw': 'Firewall',
+      'ap': 'Access Point',
+      'lb': 'Load Balancer',
+      'vm': 'Virtual Machine',
+      'nat': 'NAT Device',
+      'atm': 'ATM Switch'
+    };
+  
+    for (const [p, type] of Object.entries(prefixMap)) {
+      if (prefix.startsWith(p)) {
+        return type;
+      }
+    }
+  
+    // Final fallback - clean up and return the first word
+    return name.split(/\s+/)[0]
+      .replace(/[^a-zA-Z0-9]/, '')
+      .replace(/^./, c => c.toUpperCase());
+  };
+  
   const toggleExpand = async (device) => {
     if (expandedDevice === device.id) {
       setExpandedDevice(null);
@@ -192,26 +268,23 @@ const DashDeviceManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header and Controls */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Device Management</h1>
-          <p className="text-gray-600">Manage all network devices in your GNS3 environment</p>
-        </div>
-        <div className="flex space-x-2">
-          <button 
-            onClick={refreshDevices}
-            className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            title="Refresh devices"
-          >
-            <FaSync className={`text-gray-600 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
-            <FaPlus className="mr-2" />
-            Add Device
-          </button>
-        </div>
-      </div>
+   {/* Header and Controls */}
+<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+  <div>
+    <h1 className="text-2xl font-bold text-gray-800">Device Management</h1>
+    <p className="text-gray-600">View all network devices in your GNS3 environment</p>
+  </div>
+  <div className="flex space-x-2">
+    <button 
+      onClick={refreshDevices}
+      className="flex items-center space-x-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 px-4 py-2"
+      title="Refresh devices"
+    >
+      <FaSync className={`text-gray-600 ${isLoading ? 'animate-spin' : ''}`} />
+      <span className="text-gray-700">Refresh</span>
+    </button>
+  </div>
+</div>
 
       {/* Search and Filter Bar */}
       <div className="flex flex-col md:flex-row gap-4">
@@ -234,9 +307,9 @@ const DashDeviceManagement = () => {
               onChange={(e) => setActiveFilter(e.target.value)}
             >
               <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="warning">Warning</option>
-              <option value="inactive">Inactive</option>
+              <option value="active">Started</option>
+              <option value="warning">Suspended</option>
+              <option value="inactive">Stopped</option>
               <option value="unknown">Unknown</option>
             </select>
             <FaChevronDown className="text-gray-500 ml-2" />
@@ -284,8 +357,8 @@ const DashDeviceManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {device.name.split(' ')[0]} {/* Simple way to get device type from name */}
-                    </td>
+  {getDeviceType(device.name)} {/* New line */}
+</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button className="text-blue-600 hover:text-blue-800">
